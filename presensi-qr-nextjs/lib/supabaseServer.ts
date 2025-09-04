@@ -1,0 +1,1 @@
+// (Optional) Placeholder. We directly instantiate Supabase in the API route.\n
