@@ -1,3 +1,6 @@
+// RUN ON NODE RUNTIME (bukan Edge)
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
@@ -40,20 +43,17 @@ export async function POST(req: NextRequest) {
     if (!event_id) return new NextResponse('Missing event_id', { status: 400 });
     if (!file) return new NextResponse('Missing file', { status: 400 });
 
-    // (Opsional) Coba buat bucket qrs jika belum ada
+    // (Opsional) coba create bucket qrs (abaikan error jika sudah ada)
     try {
-      // @ts-ignore: method ada di supabase-js v2
+      // @ts-ignore
       await supabase.storage.createBucket('qrs', { public: true });
-    } catch (_) {
-      // abaikan error (mis. sudah ada)
-    }
+    } catch { /* ignore */ }
 
     const text = await file.text();
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     const rowsOut: string[] = ['name,email,token,link'];
     const baseURL = process.env.PUBLIC_BASE_URL || 'https://YOUR-VERCEL-APP.vercel.app';
-
     const errors: string[] = [];
 
     for (const [idx, line] of lines.entries()) {
@@ -83,13 +83,18 @@ export async function POST(req: NextRequest) {
 
       if (make_qr) {
         try {
-          const pngBuffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
+          // Generate PNG -> Uint8Array (lebih kompatibel ke supabase-js v2)
+          const pngBuffer: Buffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
+          const pngBytes = new Uint8Array(pngBuffer); // penting
+
           const safe = (name || 'peserta').replace(/[^a-z0-9_-]+/gi, '_');
           const path = `qrs/${event_id}/${safe}.png`;
+
           const { error: upErr } = await supabase
             .storage
             .from('qrs')
-            .upload(path, pngBuffer, { contentType: 'image/png', upsert: true });
+            .upload(path, pngBytes, { contentType: 'image/png', upsert: true });
+
           if (upErr) {
             console.error('Upload error row', idx + 1, upErr);
             errors.push(`Row ${idx + 1} upload error: ${upErr.message || upErr}`);
@@ -102,7 +107,6 @@ export async function POST(req: NextRequest) {
     }
 
     const csv = rowsOut.join('\n');
-    // Jika ada error, kirimkan CSV + header tambahan agar Anda tahu ada yang gagal
     const headers: Record<string, string> = {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="tokens_${event_id}.csv"`
