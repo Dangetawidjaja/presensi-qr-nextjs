@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
+// @ts-ignore - modul 'qrcode' tidak punya deklarasi tipe resmi
+import QRCode from 'qrcode';
+
 function authOk(req: NextRequest) {
   const provided = req.headers.get('x-admin-key') || '';
   const expected = process.env.ADMIN_KEY || '';
@@ -43,13 +46,10 @@ export async function POST(req: NextRequest) {
     const rowsOut: string[] = ['name,email,token,link'];
     const baseURL = process.env.PUBLIC_BASE_URL || 'https://YOUR-VERCEL-APP.vercel.app';
 
-    // Lazy import qrcode only if needed (avoids TS types requirement at build time)
-    const QRCode: any = make_qr ? (await import('qrcode')).default || await import('qrcode') : null;
-
     for (const line of lines) {
-      const parts = line.split(',');
-      const name = (parts[0] || '').trim();
-      const email = (parts[1] || '').trim();
+      const [nameRaw, emailRaw = ''] = line.split(',');
+      const name = (nameRaw || '').trim();
+      const email = (emailRaw || '').trim();
       if (!name) continue;
 
       const token = randomToken();
@@ -62,14 +62,14 @@ export async function POST(req: NextRequest) {
         token_hash
       });
       if (insErr) {
-        // skip this row on error
+        console.error('Insert error', insErr);
         continue;
       }
 
       const link = `${baseURL}/checkin?t=${encodeURIComponent(token)}`;
       rowsOut.push([name, email, token, link].map(csvEscape).join(','));
 
-      if (make_qr && QRCode) {
+      if (make_qr) {
         const pngBuffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
         const safe = (name || 'peserta').replace(/[^a-z0-9_-]+/gi, '_');
         const path = `qrs/${event_id}/${safe}.png`;
@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (e: any) {
+    console.error('Upload error', e);
     return new NextResponse('Unexpected error', { status: 500 });
   }
 }
