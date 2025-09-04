@@ -14,8 +14,8 @@
     "jsx": "preserve",
     "incremental": true,
     "baseUrl": ".",
-    "typeRoots": ["./types", "./node_modules/@types"]   // 👈 tambah baris ini
+    "typeRoots": ["./types", "./node_modules/@types"]   
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"], "scripts"
+  "exclude": ["node_modules"]
 }
