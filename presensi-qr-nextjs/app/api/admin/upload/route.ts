@@ -1,4 +1,3 @@
-// RUN ON NODE RUNTIME (bukan Edge)
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -43,11 +42,11 @@ export async function POST(req: NextRequest) {
     if (!event_id) return new NextResponse('Missing event_id', { status: 400 });
     if (!file) return new NextResponse('Missing file', { status: 400 });
 
-    // (Opsional) coba create bucket qrs (abaikan error jika sudah ada)
+    // (Opsional) buat bucket 'qrs' jika belum ada (abaikan error bila sudah ada)
     try {
       // @ts-ignore
       await supabase.storage.createBucket('qrs', { public: true });
-    } catch { /* ignore */ }
+    } catch {}
 
     const text = await file.text();
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -71,7 +70,6 @@ export async function POST(req: NextRequest) {
         participant_email: email || null,
         token_hash
       });
-
       if (insErr) {
         console.error('Insert error row', idx + 1, insErr);
         errors.push(`Row ${idx + 1} insert error: ${insErr.message || insErr}`);
@@ -83,10 +81,8 @@ export async function POST(req: NextRequest) {
 
       if (make_qr) {
         try {
-          // Generate PNG -> Uint8Array (lebih kompatibel ke supabase-js v2)
           const pngBuffer: Buffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
-          const pngBytes = new Uint8Array(pngBuffer); // penting
-
+          const pngBytes = new Uint8Array(pngBuffer); // penting untuk supabase-js v2
           const safe = (name || 'peserta').replace(/[^a-z0-9_-]+/gi, '_');
           const path = `qrs/${event_id}/${safe}.png`;
 
@@ -111,9 +107,7 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="tokens_${event_id}.csv"`
     };
-    if (errors.length) {
-      headers['X-Upload-Warnings'] = encodeURIComponent(errors.slice(0, 10).join(' | '));
-    }
+    if (errors.length) headers['X-Upload-Warnings'] = encodeURIComponent(errors.slice(0, 10).join(' | '));
 
     return new NextResponse(csv, { status: 200, headers });
   } catch (e: any) {
