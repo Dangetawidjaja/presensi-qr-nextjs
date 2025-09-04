@@ -81,4 +81,104 @@ export default function AdminPage() {
           </section>
 
           {/* Upload CSV section */}
-          <
+          <section style={{border:'1px solid #ddd',borderRadius:12, padding:12, marginBottom:16}}>
+            <h3 style={{marginTop:0}}>Upload CSV Peserta</h3>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget as HTMLFormElement;
+                const fd = new FormData(form);
+                if (!adminKey) { alert('Masukkan ADMIN_KEY dulu'); return; }
+                const res = await fetch(`/api/admin/upload`, {
+                  method: 'POST',
+                  headers: { 'x-admin-key': adminKey },
+                  body: fd
+                });
+                if (!res.ok) {
+                  const txt = await res.text();
+                  alert('Gagal upload: ' + txt);
+                  return;
+                }
+                // download tokens.csv
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `tokens_${eventId}.csv`;
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+                alert('Upload sukses. tokens.csv terunduh.');
+              }}
+              style={{display:'grid', gap:10}}
+            >
+              <input type="hidden" name="event_id" value={eventId} />
+              <label>
+                <div style={{fontSize:12,color:'#555'}}>File CSV (format: Nama,Email — tanpa header)</div>
+                <input name="file" type="file" accept=".csv" required />
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:8}}>
+                <input name="make_qr" type="checkbox" defaultChecked /> Generate & unggah QR ke Supabase Storage
+              </label>
+              <button type="submit" style={{padding:'10px 14px',border:'1px solid #222',borderRadius:8,cursor:'pointer'}}>
+                Upload & Generate Token
+              </button>
+              <small style={{color:'#666'}}>Catatan: Jika dicentang, QR PNG akan disimpan ke bucket Storage <code>qrs</code>.</small>
+            </form>
+          </section>
+
+          <section style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12, marginBottom:16}}>
+            <div style={{border:'1px solid #ddd',borderRadius:12,padding:12}}>
+              <div style={{fontSize:12,color:'#666'}}>Total Peserta</div>
+              <div style={{fontSize:24,fontWeight:700}}>{stats?.total ?? '-'}</div>
+            </div>
+            <div style={{border:'1px solid #ddd',borderRadius:12,padding:12}}>
+              <div style={{fontSize:12,color:'#666'}}>Hadir</div>
+              <div style={{fontSize:24,fontWeight:700}}>{stats?.hadir ?? '-'}</div>
+            </div>
+            <div style={{border:'1px solid #ddd',borderRadius:12,padding:12}}>
+              <div style={{fontSize:12,color:'#666'}}>% Kehadiran</div>
+              <div style={{fontSize:24,fontWeight:700}}>{stats ? percent(stats.attendance_rate) : '-'}</div>
+            </div>
+          </section>
+
+          <section style={{border:'1px solid #ddd',borderRadius:12,overflow:'hidden'}}>
+            <div style={{padding:12, borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <strong>Daftar Check-in</strong>
+              {loading && <span style={{fontSize:12,color:'#666'}}>memuat…</span>}
+            </div>
+            <div style={{maxHeight: '60vh', overflow: 'auto'}}>
+              <table style={{width:'100%', borderCollapse:'collapse'}}>
+                <thead style={{position:'sticky', top:0, background:'#fafafa'}}>
+                  <tr>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>Waktu</th>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>Nama</th>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>Email</th>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>Method</th>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>IP</th>
+                    <th style={{textAlign:'left',padding:10,borderBottom:'1px solid #eee'}}>User-Agent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r,i)=>(
+                    <tr key={i} style={{borderBottom:'1px solid #f1f1f1'}}>
+                      <td style={{padding:10}}>{new Date(r.scanned_at).toLocaleString()}</td>
+                      <td style={{padding:10}}>{r.participant_name}</td>
+                      <td style={{padding:10}}>{r.participant_email || '-'}</td>
+                      <td style={{padding:10}}>{r.method}</td>
+                      <td style={{padding:10}}>{r.ip || '-'}</td>
+                      <td style={{padding:10, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={r.user_agent || ''}>
+                        {r.user_agent || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && (
+                    <tr><td colSpan={6} style={{padding:16, color:'#666'}}>Belum ada data.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
+    </main>
+  );
+}
