@@ -20,5 +20,18 @@
   "devDependencies": {
     "tsx": "4.19.2",
     "typescript": "5.5.4"
+
+    {
+  "name": "presensi-qr-nextjs",
+  "version": "0.1.2",
+  "dependencies": {
+    "html5-qrcode": "2.3.8",
+    "...": "..."
+  },
+  "overrides": {
+    "html5-qrcode": "2.3.8"
+  }
+}
+
   }
 }
