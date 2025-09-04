@@ -135,11 +135,31 @@ export default function AdminPage() {
               <button type="submit" style={{padding:'10px 14px',border:'1px solid #222',borderRadius:8,cursor:'pointer'}}>
                 Upload & Generate Token
               </button>
+
+              {/* Cek Storage */}
+              <div style={{marginTop:8}}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!adminKey) { alert('Masukkan ADMIN_KEY dulu'); return; }
+                    const res = await fetch(`/api/admin/storage-list?event_id=${encodeURIComponent(eventId)}`, {
+                      headers: { 'x-admin-key': adminKey }
+                    });
+                    const json = await res.json();
+                    if (!json.ok) { alert('Gagal list: ' + json.error); return; }
+                    if (!json.files?.length) { alert('Belum ada file di qrs/' + eventId); return; }
+                    const list = json.files.map((f: any) => f.name).join('\n');
+                    alert('File di qrs/' + eventId + ':\n' + list);
+                  }}
+                  style={{padding:'8px 12px', border:'1px solid #666', borderRadius:8, cursor:'pointer'}}
+                >
+                  Lihat QR di Storage
+                </button>
+              </div>
+
               <small style={{color:'#666'}}>Catatan: Jika dicentang, QR PNG akan disimpan ke bucket Storage <code>qrs</code>.</small>
             </form>
           </section>
-
-          {/* Statistik dan tabel check-in tetap seperti sebelumnya */}
         </>
       )}
     </main>
