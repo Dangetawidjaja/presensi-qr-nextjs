@@ -1,4 +1,3 @@
--- See README for details
 create table if not exists public.passes (
   id uuid primary key default gen_random_uuid(),
   event_id text not null,
@@ -7,7 +6,6 @@ create table if not exists public.passes (
   token_hash text not null unique,
   used_at timestamptz
 );
-
 create table if not exists public.checkins (
   id uuid primary key default gen_random_uuid(),
   event_id text not null,
@@ -18,6 +16,5 @@ create table if not exists public.checkins (
   ip text,
   user_agent text
 );
-
 create index if not exists idx_passes_event on public.passes(event_id);
 create index if not exists idx_passes_token_hash on public.passes(token_hash);
