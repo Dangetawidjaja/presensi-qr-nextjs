@@ -40,13 +40,23 @@ export async function POST(req: NextRequest) {
     if (!event_id) return new NextResponse('Missing event_id', { status: 400 });
     if (!file) return new NextResponse('Missing file', { status: 400 });
 
+    // (Opsional) Coba buat bucket qrs jika belum ada
+    try {
+      // @ts-ignore: method ada di supabase-js v2
+      await supabase.storage.createBucket('qrs', { public: true });
+    } catch (_) {
+      // abaikan error (mis. sudah ada)
+    }
+
     const text = await file.text();
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     const rowsOut: string[] = ['name,email,token,link'];
     const baseURL = process.env.PUBLIC_BASE_URL || 'https://YOUR-VERCEL-APP.vercel.app';
 
-    for (const line of lines) {
+    const errors: string[] = [];
+
+    for (const [idx, line] of lines.entries()) {
       const [nameRaw, emailRaw = ''] = line.split(',');
       const name = (nameRaw || '').trim();
       const email = (emailRaw || '').trim();
@@ -61,8 +71,10 @@ export async function POST(req: NextRequest) {
         participant_email: email || null,
         token_hash
       });
+
       if (insErr) {
-        console.error('Insert error', insErr);
+        console.error('Insert error row', idx + 1, insErr);
+        errors.push(`Row ${idx + 1} insert error: ${insErr.message || insErr}`);
         continue;
       }
 
@@ -70,24 +82,36 @@ export async function POST(req: NextRequest) {
       rowsOut.push([name, email, token, link].map(csvEscape).join(','));
 
       if (make_qr) {
-        const pngBuffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
-        const safe = (name || 'peserta').replace(/[^a-z0-9_-]+/gi, '_');
-        const path = `qrs/${event_id}/${safe}.png`;
-        await supabase.storage.from('qrs').upload(path, pngBuffer, {
-          contentType: 'image/png',
-          upsert: true
-        });
+        try {
+          const pngBuffer = await QRCode.toBuffer(link, { width: 512, margin: 2 });
+          const safe = (name || 'peserta').replace(/[^a-z0-9_-]+/gi, '_');
+          const path = `qrs/${event_id}/${safe}.png`;
+          const { error: upErr } = await supabase
+            .storage
+            .from('qrs')
+            .upload(path, pngBuffer, { contentType: 'image/png', upsert: true });
+          if (upErr) {
+            console.error('Upload error row', idx + 1, upErr);
+            errors.push(`Row ${idx + 1} upload error: ${upErr.message || upErr}`);
+          }
+        } catch (e: any) {
+          console.error('QR gen error row', idx + 1, e);
+          errors.push(`Row ${idx + 1} QR gen error: ${e?.message || e}`);
+        }
       }
     }
 
     const csv = rowsOut.join('\n');
-    return new NextResponse(csv, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="tokens_${event_id}.csv"`
-      }
-    });
+    // Jika ada error, kirimkan CSV + header tambahan agar Anda tahu ada yang gagal
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="tokens_${event_id}.csv"`
+    };
+    if (errors.length) {
+      headers['X-Upload-Warnings'] = encodeURIComponent(errors.slice(0, 10).join(' | '));
+    }
+
+    return new NextResponse(csv, { status: 200, headers });
   } catch (e: any) {
     console.error('Upload error', e);
     return new NextResponse('Unexpected error', { status: 500 });
